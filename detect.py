@@ -20,7 +20,7 @@ from models.models import *
 from models.experimental import *
 from utils.datasets import *
 from utils.general import *
-
+save_path_count = 0
 def load_classes(path):
     # Loads *.names file at 'path'
     with open(path, 'r') as f:
@@ -28,6 +28,7 @@ def load_classes(path):
     return list(filter(None, names))  # filter removes empty strings (such as last line)
 
 def detect(save_img=False):
+    global save_path_count
     out, source, weights, view_img, save_txt, imgsz, cfg, names = \
         opt.output, opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size, opt.cfg, opt.names
     webcam = source == '0' or source.startswith('rtsp') or source.startswith('http') or source.endswith('.txt')
@@ -95,14 +96,15 @@ def detect(save_img=False):
         # Apply Classifier
         if classify:
             pred = apply_classifier(pred, modelc, img, im0s)
-
+        
         # Process detections
         for i, det in enumerate(pred):  # detections per image
             if webcam:  # batch_size >= 1
                 p, s, im0 = path[i], '%g: ' % i, im0s[i].copy()
             else:
                 p, s, im0 = path, '', im0s
-
+            if opt.save_train_data:
+                imgsave = im0.copy()
             save_path = str(Path(out) / Path(p).name)
             txt_path = str(Path(out) / Path(p).stem) + ('_%g' % dataset.frame if dataset.mode == 'video' else '')
             s += '%gx%g ' % img.shape[2:]  # print string
@@ -115,7 +117,7 @@ def detect(save_img=False):
                 for c in det[:, -1].unique():
                     n = (det[:, -1] == c).sum()  # detections per class
                     s += '%g %ss, ' % (n, names[int(c)])  # add to string
-
+                saveTrainData = ""
                 # Write results
                 for *xyxy, conf, cls in det:
                     if save_txt:  # Write to file
@@ -126,6 +128,31 @@ def detect(save_img=False):
                     if save_img or view_img:  # Add bbox to image
                         label = '%s %.2f' % (names[int(cls)], conf)
                         plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
+                    if opt.save_train_data:
+                        # 存入訓練資料
+                        c1, c2 = (int(xyxy[0]), int(xyxy[1])), (int(xyxy[2]), int(xyxy[3]))
+                        xmin = c1[0]
+                        xmax = c2[0]
+                        ymin = c1[1]
+                        ymax = c2[1]
+                        img_w = im0.shape[1]
+                        img_h = im0.shape[0]
+                        x = (xmin + (xmax-xmin)/2) * 1.0 / img_w
+                        y = (ymin + (ymax-ymin)/2) * 1.0 / img_h
+                        w = (xmax-xmin) * 1.0 / img_w
+                        h = (ymax-ymin) * 1.0 / img_h
+                        saveTrainData += str(int(cls)) + " " + str(x)+" "+str(y)+" "+str(w)+" "+str(h)+"\n"
+                if opt.save_train_data:
+                    save_path_train = str(Path(opt.save_train_data_path))
+                    if not os.path.exists(save_path_train):
+                        os.makedirs(save_path_train)
+                        os.makedirs(save_path_train+"/lab")
+                        os.makedirs(save_path_train+"/img")
+                    cv2.imwrite(save_path_train+"/img/"+str(save_path_count)+".png", imgsave)
+                    with open(save_path_train+"/lab/"+str(save_path_count)+".txt", "w") as text_file:
+                        text_file.write(saveTrainData)
+                    save_path_count +=1
+                        
 
             # Print time (inference + NMS)
             print('%sDone. (%.3fs)' % (s, t2 - t1))
@@ -164,6 +191,8 @@ def detect(save_img=False):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', nargs='+', type=str, default='yolov4.pt', help='model.pt path(s)')
+    parser.add_argument('--save-train-data', type=bool, default=False, help='偵測解果反紀錄為訓練資料')
+    parser.add_argument('--save-train-data-path', type=str,default="inference/retrain", help='偵測解果反紀錄為訓練資料路徑')
     parser.add_argument('--source', type=str, default='inference/images', help='source')  # file/folder, 0 for webcam
     parser.add_argument('--output', type=str, default='inference/output', help='output folder')  # output folder
     parser.add_argument('--img-size', type=int, default=640, help='inference size (pixels)')

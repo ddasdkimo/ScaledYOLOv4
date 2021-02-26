@@ -42,7 +42,8 @@ def test(data,
          dataloader=None,
          save_dir='',
          merge=False,
-         save_txt=False):
+         save_txt=False,
+         epoch=-1):
     # Initialize/load model and set device
     training = model is not None
     if training:  # called by train.py
@@ -200,9 +201,13 @@ def test(data,
 
         # Plot images
         if batch_i < 1:
-            f = Path(save_dir) / ('test_batch%g_gt.jpg' % batch_i)  # filename
+            from datetime import datetime
+            testTime = datetime.today().strftime('%Y-%m-%d-%H:%M:%S')
+            # f = Path(save_dir) / ('test_batch%g_gt.jpg' % batch_i)  # filename
+            f = Path(save_dir) / ('test_batch_epoch_'+str(epoch)+'_%s_gt.jpg' % testTime)  # filename
             plot_images(img, targets, paths, str(f), names)  # ground truth
-            f = Path(save_dir) / ('test_batch%g_pred.jpg' % batch_i)
+            # f = Path(save_dir) / ('test_batch%g_pred.jpg' % batch_i)
+            f = Path(save_dir) / ('test_batch_epoch_'+str(epoch)+'_%s_pred.jpg' % testTime)
             plot_images(img, output_to_target(output, width, height), paths, str(f), names)  # predictions
 
     # Compute statistics
